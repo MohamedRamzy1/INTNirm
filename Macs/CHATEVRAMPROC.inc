@@ -1,0 +1,345 @@
+CHATEVRAMPROC MACRO
+
+PROC CHECKTOSENDevram
+	PUSH AX
+	MOV DX,3FDH
+	AGAIN:
+		IN AL,DX
+		AND AL,00100000B
+		JZ AGAIN
+	POP AX
+	RET
+CHECKTOSENDevram ENDP
+
+
+
+PROC EVRAMCHECKTORECEIVE
+	PUSHA
+	MOV DX,03FDH
+	IN AL,DX
+	AND AL,1
+	POPA
+	JZ LOOPMEPLEASECONT ;NOTHING TO RECIEVE
+	
+	mov BOOLEV,1
+	JNZ evramrec
+EVRAMCHECKTORECEIVE ENDP
+	
+PROC EVRAMREADMYMESSAGE
+	
+
+	ContinueSend:
+
+	LEA SI,MyMSG
+	ADD SI,2
+	MOV AL, NUMOFCHARS 
+	MOV AH,0
+	ADD SI,AX
+	LOOPMEPLEASE:
+	;CHECK FOR REC
+	CALL EVRAMCHECKTORECEIVE
+
+	LOOPMEPLEASECONT:
+	MOV BOOLEV,0
+	;AH->SCAN , AL->ASCII
+	;ENTER->1C
+	;SPACE->39
+	;BACKSPACE->0E
+	;CHECK ON AH FIRST
+	 
+	;WAIT A SEC
+	MOV AH,86H
+	MOV CX,0
+	MOV DX,0110H
+	INT 15H
+
+	
+	mov ah, 1   ; peek
+	int 16h
+	jz  LOOPMEPLEASE
+	mov ah, 0   ; get
+	int 16h  
+
+	CMP AH,0EH
+	JZ DELETELASTCHAR
+
+	CMP AH,1CH
+	JZ EnterIsPressed
+
+	CMP NUMOFCHARS,78
+	JNC LOOPMEPLEASE
+
+	
+	CMP AH,39H
+	JZ ADDSPACE
+
+
+
+	MOV [SI],AL
+	INC SI
+	INC NUMOFCHARS
+	CALL EVRAMDISPLAYMESSAGEEEEE
+	JMP LOOPMEPLEASE
+
+	DELETELASTCHAR:
+	DEC SI
+	MOV [SI],'$'
+	DEC NUMOFCHARS
+	CALL EVRAMDISPLAYMESSAGEEEEE
+	jmp LOOPMEPLEASE
+
+
+	ADDSPACE:
+	MOV [SI]," "
+	INC SI 
+	INC NUMOFCHARS
+	CALL EVRAMDISPLAYMESSAGEEEEE
+	jmp LOOPMEPLEASE
+
+	EnterIsPressed:
+
+	MOV NUMOFCHARS,0
+
+	INC MyLines
+	
+
+	CMP MyLines,10
+	JNZ LoopToSend
+	DEC MyLines
+
+	CALL overwritethings
+	JMP LoopToSend
+
+
+EVRAMREADMYMESSAGE ENDP       
+
+proc overwritethings
+	pusha
+	MOV CH,0
+	MOV BL,9
+	
+	LOOPTHISFORME:
+	LEA SI,TESTMSG
+	ADD SI,2
+	MOV CL,0
+	LOOPTHISFORME2:
+	
+	MOV AH,2
+	MOV DL,CL
+	MOV DH,11
+	SUB DH,BL
+	INT 10H
+
+	PUSH BX
+	MOV AL,0
+	MOV BX,0
+	mov ah,8
+	int 10H
+	POP BX
+	;AL HAS THE CHAR	
+	MOV [SI],AL
+	INC SI
+
+	INC CL
+	CMP CL,79
+	JNZ LOOPTHISFORME2
+
+	MOV AH,2
+	MOV DL,0
+	MOV DH,10
+	SUB DH,BL
+	INT 10H
+
+	mov ah,9
+    mov dx,offset TESTMSG
+    ADD DX,2
+    int 21h
+
+	DEC BL
+	CMP BL,0
+	JNZ LOOPTHISFORME
+
+	popa
+  
+
+	MOV AH,2
+	MOV DL,0
+	MOV DH,10
+	INT 10H
+
+	mov ah,9
+    mov dx,offset EmptyMSG
+    ADD DX,2
+    int 21h
+
+	JMP LoopToSend
+overwritethings endp
+
+
+proc overwritethings2
+
+	pusha
+	MOV CH,0
+	MOV BL,9
+	
+	LOOPTHISFORMEDOWN:
+	LEA DI,TESTMSG2
+	ADD DI,2
+
+	MOV CL,0
+	LOOPTHISFORMEDOWN2:
+	
+	MOV AH,2
+	MOV DL,CL
+	MOV DH,23
+	SUB DH,BL
+	INT 10H
+
+	PUSH BX
+	MOV AL,0
+	MOV BX,0
+	mov ah,8
+	int 10H
+	POP BX
+	;AL HAS THE CHAR	
+	MOV [DI],AL
+	INC DI
+
+	INC CL
+	CMP CL,79
+	JNZ LOOPTHISFORMEDOWN2
+
+	MOV AH,2
+	MOV DL,0
+	MOV DH,22
+	SUB DH,BL
+	INT 10H
+
+	mov ah,9
+    mov dx,offset TESTMSG2
+    ADD DX,2
+    int 21h
+
+	DEC BL
+	CMP BL,0
+	JNZ LOOPTHISFORMEDOWN
+
+	popa
+  
+
+	MOV AH,2
+	MOV DL,0
+	MOV DH,22
+	INT 10H
+
+	mov ah,9
+    mov dx,offset EmptyMSG
+    ADD DX,2
+    int 21h
+
+	JMP returnhere1
+overwritethings2 endp
+ 
+PROC WRITEHISMSG
+	
+	MOV HISPOS,0    
+	INC HisLines
+
+	CMP HisLines,23
+	JNZ returnhere1
+	DEC HisLINES
+	CALL overwritethings2
+	jmp returnhere1
+
+WRITEHISMSG ENDP
+
+
+
+
+PROC EVRAMDISPLAYMESSAGEEEEE
+ 	;WAIT A SEC
+	MOV AH,86H
+	MOV CX,0
+	MOV DX,0110H
+	INT 15H
+ ;FIRST WE NEED TO MOVE THE CURSOR
+  	MOV DL,0
+    MOV DH,MyLines
+    ADD DH,1
+    mov ah,2
+    int 10h
+   	
+    mov ah,9
+    mov dx,offset EmptyMSG
+    ADD DX,2
+    int 21h
+
+    MOV DL,0
+    MOV DH,MyLines
+    ADD DH,1
+    mov ah,2
+    int 10h
+
+    mov ah,9
+    mov dx,offset MYMSG
+    ADD DX,2
+    int 21h
+
+    RET
+EVRAMDISPLAYMESSAGEEEEE ENDP
+
+PROC PrepareScreen
+	;CLEAR TO START  
+	PUSHA   
+	MOV AX,0600H
+	MOV BH,07
+	MOV CX,0
+	MOV DX,184FH
+	INT 10H
+	POPA  
+	PUSH DX  
+	
+	;CHANGE CURSOR BEFORE WE START
+	MOV DL,0
+	MOV DH,0 
+	mov ah,2
+	int 10h
+	
+	mov ah, 9
+	mov dx, offset YOURNAMEMSG
+	int 21h
+
+
+	MOV DL,0
+	MOV DH,12 
+	mov ah,2
+	int 10h
+
+	mov ah, 9
+	mov dx, offset HISNAMEMSG
+	int 21h
+
+
+	MOV DL,0
+	MOV DH,11
+	mov ah,2
+	int 10h
+   ;DRAW A HORIZONTAL COOL LINE XD 
+	DRAWHORIZ: 
+	PUSH DX
+	mov ah,2
+	mov dl,'-'
+	int 21h
+	POP DX
+	INC DL
+	CMP DL,79  
+	JNZ DRAWHORIZ
+  
+	POP DX
+	RET      
+
+	PrepareScreen ENDP    
+
+
+
+ENDM CHATEVRAMPROC
